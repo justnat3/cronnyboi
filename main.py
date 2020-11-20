@@ -29,7 +29,7 @@ parser.add_argument(
     type=str,
     required=False,
 )
-parser.add_argument("-d", help="date -> webco time", type=str, required=False)
+parser.add_argument("-d", help="date ->  time", type=str, required=False)
 parser.add_argument(
     "--status", help="get schedular current status", action='store_true', required=False
 )
