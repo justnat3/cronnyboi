@@ -160,18 +160,20 @@ def getInterval(timeDate: str) -> dict:
 
 def main(service: str, action: str, timeDate: str) -> None:
     """
-        Parameters:
-            service  (str): A service name to give to the scheduler
-            action   (str): A action to feed the scheduler on the service given
-            timeDate (str): The time at which the action on the service should be scheduled
-        Returns:
-            Nothing this is where most of the functionality is called in the program.
+    Parameters:
+        service  (str): A service name to give to the scheduler
+        action   (str): A action to feed the scheduler on the service given
+        timeDate (str): The time at which the action on the service should be scheduled
+    Returns:
+        Nothing this is where most of the functionality is called in the program.
     """
     captureArgs()
     intervalDict = getInterval(timeDate)
     intervalHours, intervalDays = intervalDict["hours"], intervalDict["days"]
-    
-    if service == None or action == None: # Check if there was a service//service provided 
+
+    if (
+        service == None or action == None
+    ):  # Check if there was a service//service provided
         print("No Tasks were scheduled")
     else:
         jobHandler(service, action, intervalDays, intervalHours)
@@ -179,7 +181,7 @@ def main(service: str, action: str, timeDate: str) -> None:
 
 def jobHandler(
     service: str, action: str, intervalDays: int = 0, intervalHours: int = 0
-    ) -> None:
+) -> None:
     """
     Parameters:
         service        (str): service name provided
@@ -198,13 +200,14 @@ def jobHandler(
     scheduler.start()
     sockConnect(service, action, _time_start)
 
+
 def task(service, action) -> None:
     """
-        Parameters:
-            service (str): ServiceName to be started
-            action  (str): action to inact on the service
-        Returns:
-            Nothing. Starts a child process with the task requested.
+    Parameters:
+        service (str): ServiceName to be started
+        action  (str): action to inact on the service
+    Returns:
+        Nothing. Starts a child process with the task requested.
     """
     ##TODO: Check to see if service exists in systemd
     subprocess.run(f"sudo systemctl {action} {service}", shell=True)
@@ -212,10 +215,10 @@ def task(service, action) -> None:
 
 def stopSock(service: str) -> None:
     """
-        Parameters:
-            service (str): service name
-        Returns:
-            Nothing. This sends a byte string to the sockConnect method to a rogue process to stop the python process remote
+    Parameters:
+        service (str): service name
+    Returns:
+        Nothing. This sends a byte string to the sockConnect method to a rogue process to stop the python process remote
     """
     ServiceTable = getServiceTable()
     for k in ServiceTable:
@@ -236,12 +239,12 @@ def stopSock(service: str) -> None:
 
 def sockConnect(service: str, status: str, timeStarted: str) -> None:
     """
-        Parameters:
-            service     (str): the service name given
-            status      (str): the status of the procedure
-            timeStarted (str): The time at which this process started
-        Returns:
-            Nothing. This starts a linux domain socket for the controller to connect to later.
+    Parameters:
+        service     (str): the service name given
+        status      (str): the status of the procedure
+        timeStarted (str): The time at which this process started
+    Returns:
+        Nothing. This starts a linux domain socket for the controller to connect to later.
     """
     serviceName = f"sck_{service}_{status}"
     ServiceTable = getServiceTable()
