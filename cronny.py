@@ -1,15 +1,30 @@
-"""
-Sockets work
-add named socket functionality 
-add pause funcationity
-"""
-
 #!/bin/python3
-__author__ = "Nathan Reed"
+"""
+MIT License
 
+Copyright (c) 2020 Nathan Reed
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
-Scheduling tasks with ease, provides an abstraction from crontab, sync not async.
-"""
+
+
+__author__ = "Nathan Reed"
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
@@ -23,25 +38,38 @@ import sys
 import time
 
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
 parser = argparse.ArgumentParser(prog="cronny", description="Schedule Tasks With Ease")
 parser.add_argument("-t", help="Target Task to Schedule", type=str, required=False)
+
 parser.add_argument(
     "-a",
     help="restart, stop, start, :: DO NOT USE Disable/Enable",
     type=str,
     required=False,
 )
+
 parser.add_argument("-d", help="date -> cronny time", type=str, required=False)
+
 parser.add_argument(
-    "--status", help="get schedular current status", action='store_true', required=False
+    "--status", help="get schedular current status", action="store_true", required=False
 )
-parser.add_argument("--stop", help="stops a given instance of cronny", type=str, required=False)
-parser.add_argument("--pause", help="pauses all instances of cronny", action='store_true', required=False)
+
+parser.add_argument(
+    "--stop", help="stops a given instance of cronny", type=str, required=False
+)
+
+parser.add_argument(
+    "--pause",
+    help="pauses all instances of cronny",
+    action="store_true",
+    required=False,
+)
 args = parser.parse_args()
 
 service: str = args.t
 action: str = args.a
-time_d: str = args.d
+timeDate: str = args.d
 status: bool = args.status
 stop: str = args.stop
 pause: bool = args.pause
@@ -61,142 +89,173 @@ scheduler.configure(
     jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=utc
 )
 
+
 def getServiceTable() -> dict:
-    service_dict = {}
-    for i in os.scandir('/tmp'):
-        if not i.name.startswith('.') and not i.is_dir():
-            if i.name[0:3] == 'sck':
-                split_service_action = i.name.split('_')
-                service_dict[split_service_action[1]] = split_service_action[2]
-    return service_dict
+    """Returns a dict with the ServiceTable information"""
+    serviceDict = {}
+    for i in os.scandir("/tmp"):
+        if not i.name.startswith(".") and not i.is_dir():
+            if i.name[0:3] == "sck":
+                serviceActionStringSplit = i.name.split("_")
+                serviceDict[serviceActionStringSplit[1]] = serviceActionStringSplit[2]
+    return serviceDict
+
 
 def showFormattedServiceTable(ServiceTable: dict) -> None:
-    print("\n")
+    """
+    Parameters:
+        ServiceTable (dict): A dictionary of Services & Actions
+
+    Returns:
+        A Pretty printed formatted table of the ServiceTable
+    """
     print("{:<18} {:<21}".format("service", "action"))
     print("{:<18} {:<21}".format("-------", "------"))
-    for k,v in ServiceTable.items():
-        service,action = k,v
-        print("{:<18} {:<21} ".format(k,v))
+    for k, v in ServiceTable.items():
+        service, action = k, v
+        print("{:<18} {:<21} ".format(k, v))
     print("\n")
 
+
 def captureArgs() -> None:
+    """Purely meant to clean up the capture argument function in main."""
     if os.getuid() != 0:
         print("--you are not root--")
         exit(130)
     if stop:
         print("stopping")
-        _stop_sock(stop)
+        stopSock(stop)
     if status:
         ServiceTable = getServiceTable()
         showFormattedServiceTable(ServiceTable)
         sys.exit(130)
-def getInterval(time_d: str) -> dict:
-    """0th index is days - 1th index is hours"""
+
+
+def getInterval(timeDate: str) -> dict:
+    """
+    Parametrs:
+        timeDate (str): A representation of when the action was scheduled
+    Returns:
+        returnedInterval (dict): 2 items in the dictionary, hours && Days.
+
+    """
     returnedInterval = {}
-    _interval_days:int = 0
-    _interval_hours:int = 0
-    if time_d != None:
-        if "days" in time_d:
-            _result = time_d.split("days")
-            _interval_days = int(_result[0])
-            returnedInterval["days"] = _interval_days
-        if "days" not in time_d:
+    intervalDays: int = 0
+    intervalHours: int = 0
+    if timeDate != None:
+        if "days" in timeDate:
+            _result = timeDate.split("days")
+            intervalDays = int(_result[0])
+            returnedInterval["days"] = intervalDays
+        if "days" not in timeDate:
             returnedInterval["days"] = 0
-        if "hr" in time_d:
-            _result = time_d.split("hr")
-            _interval_hours = int(_result[0])
-            returnedInterval["hours"] = _interval_hours
-        if "hr" not in time_d:
+        if "hr" in timeDate:
+            _result = timeDate.split("hr")
+            intervalDays = int(_result[0])
+            returnedInterval["hours"] = intervalHours
+        if "hr" not in timeDate:
             returnedInterval["hours"] = 0
     return returnedInterval
 
 
-def main(service: str, action: str, time_d: str) -> None:
-
+def main(service: str, action: str, timeDate: str) -> None:
     """
-    NOTES:
-        if restart occurs, cronny forget process -> you will have to restart the task
-        This program was not meant to be used for extended periods on servers or machines
+        Parameters:
+            service  (str): A service name to give to the scheduler
+            action   (str): A action to feed the scheduler on the service given
+            timeDate (str): The time at which the action on the service should be scheduled
+        Returns:
+            Nothing this is where most of the functionality is called in the program.
     """
-    
     captureArgs()
-    intervalDict = getInterval(time_d)
-    _interval_hours, _interval_days = intervalDict["hours"], intervalDict["days"] 
-    if service == None or action == None:
+    intervalDict = getInterval(timeDate)
+    intervalHours, intervalDays = intervalDict["hours"], intervalDict["days"]
+    
+    if service == None or action == None: # Check if there was a service//service provided 
         print("No Tasks were scheduled")
     else:
-        job_handler(service, action, _interval_hours, _interval_days)
+        jobHandler(service, action, intervalDays, intervalHours)
 
 
-def job_handler(service: str, action: str, _interval_hours:int=0, _interval_days:int=0):
-    """Used for handling job to the apscheduler"""
+def jobHandler(
+    service: str, action: str, intervalDays: int = 0, intervalHours: int = 0
+):
     _time_start = "TIME_SCHEDULED: " + str(datetime.datetime.now())
 
-    print(_time_start)
-
-    """FLOW:
-        Main => job_handler(task: object) => apscheduler(does magic)"""
-    # task is a function
     scheduler.add_job(
-        task, "interval", days=_interval_days, hours=_interval_hours, args=(service, action)
+        task, "interval", days=intervalDays, hours=intervalHours, args=(service, action)
     )
-    _sock_connect(service, action, _time_start)
+    sockConnect(service, action, _time_start)
     scheduler.start()
 
 
 def task(service, action) -> None:
-    subprocess.run(
-        f"sudo systemctl {action} {service}", shell=True
-    )
-
-
-def _stop_sock(service: str):
     """
-    Description:
-        Create a socket => forward STOP message to PID.
+        Parameters:
+            service (str): ServiceName to be started
+            action  (str): action to inact on the service
+        Returns:
+            Nothing. Starts a child process with the task requested.
+    """
+    ##TODO: Check to see if service exists in systemd
+    subprocess.run(f"sudo systemctl {action} {service}", shell=True)
 
-    Where we left off. socket refuses connection.
-    could not get succesful close
+
+def stopSock(service: str) -> None:
+    """
+        Parameters:
+            service (str): service name
+        Returns:
+            Nothing. This sends a byte string to the sockConnect method to a rogue process to stop the python process remote
     """
     ServiceTable = getServiceTable()
     for k in ServiceTable:
         if k == service:
-            sockFile = f"sck_{service}_{ServiceTable[k]}" 
+            sockFile = f"sck_{service}_{ServiceTable[k]}"
             try:
                 sock.connect(sockFile)
-                sock.sendall(b'stop')
+                sock.sendall(b"stop")
             except Exception as err:
                 print(err)
                 break
             finally:
-                #os.remove(os.path.join('/tmp',sockFile))
+                # os.remove(os.path.join('/tmp',sockFile))
                 sock.close()
                 sys.exit(0)
         break
-        
 
-def _sock_connect(service: str, status: str, timeStarted: str) -> None:
-    service_name = f"sck_{service}_{status}"
+
+def sockConnect(service: str, status: str, timeStarted: str) -> None:
+    """
+        Parameters:
+            service     (str): the service name given
+            status      (str): the status of the procedure
+            timeStarted (str): The time at which this process started
+        Returns:
+            Nothing. This starts a linux domain socket for the controller to connect to later.
+    """
+    serviceName = f"sck_{service}_{status}"
     ServiceTable = getServiceTable()
     for k in ServiceTable:
         if k == service:
             print("This is already in the Service Table")
             sys.exit(1)
-    sock.bind(os.path.join('/tmp',service_name ))
+    sock.bind(os.path.join("/tmp", serviceName))
     sock.listen(6)
+    print(timeStarted)
     while True:
-        connection, client_address = sock.accept()
+        connection, clientAddress = sock.accept()
         try:
             while True:
                 data = connection.recv(1024)
-                if data == b'stop':
+                if data == b"stop":
                     break
         finally:
-            print(timeStarted)
-            print('finally')
             connection.close()
             sys.exit(0)
         time.sleep(5)
+
+
 if __name__ == "__main__":
-    main(service, action, time_d)
+    main(service, action, timeDate)
     sys.exit(1)

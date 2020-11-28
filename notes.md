@@ -9,8 +9,10 @@
 
 
 ##      STOPPING POINT:
+	
 	1. stop sock almost works
-	2. seperated main funtionality into functions
+	. seperated main funtionality into functions
 	3. added formatted table of currently running tasks 
+
 
 
