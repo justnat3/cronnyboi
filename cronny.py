@@ -179,15 +179,24 @@ def main(service: str, action: str, timeDate: str) -> None:
 
 def jobHandler(
     service: str, action: str, intervalDays: int = 0, intervalHours: int = 0
-):
+    ) -> None:
+    """
+    Parameters:
+        service        (str): service name provided
+        action         (str): action for the service provided
+        intervalDays   (int): time in days for the scheduler
+        intervalHours  (int): time in hours for the scheduler
+    Returns:
+        Nothing. This is where the UNIX Domain socket is activated.
+                 The Job Scheduler is called
+    """
     _time_start = "TIME_SCHEDULED: " + str(datetime.datetime.now())
 
     scheduler.add_job(
         task, "interval", days=intervalDays, hours=intervalHours, args=(service, action)
     )
-    sockConnect(service, action, _time_start)
     scheduler.start()
-
+    sockConnect(service, action, _time_start)
 
 def task(service, action) -> None:
     """
