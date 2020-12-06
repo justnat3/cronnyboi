@@ -207,19 +207,13 @@ def getInterval(timeDate: str) -> dict:
         returnedInterval (dict): 2 items in the dictionary, hours && Days.
 
     """
-    returnedInterval: dict = {}
-    collectedStr: str = ""
-    collectedInt: int = ""
+    returnedInterval, collectedStr, collectedInt = {}, ""
     if timeDate != None:
         for i in timeDate:
-            if i.isdigit():
-                collectedInt += str(i)
-            if not i.isdigit():
-                collectedStr += str(i)
+            collectedInt += str(i) if i.isdigit() else collectedStr += str(i)
             if i == " " or i == timeDate[-1]:
                 returnedInterval[collectedStr] = int(collectedInt)
-                collectedInt: int = ""
-                collectedStr: str = ""
+                collectedInt, collectedStr = ""
             continue
 
     for j in returnedInterval:
