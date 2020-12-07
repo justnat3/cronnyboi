@@ -28,19 +28,11 @@ __author__ = "Nathan Reed"
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+import subprocess, argparse, datetime, socket, os, time, base64
 from pytz import utc
-import subprocess
-import argparse
-import datetime
-import socket
-import os
 import sys
-import time
-import base64
 
-sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-parser = argparse.ArgumentParser(prog="cronny", description="Schedule Tasks With Ease")
+sock, parser = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM), argparse.ArgumentParser(prog="cronny", description="Schedule Tasks With Ease")
 
 parser.add_argument(
     "-a",
@@ -65,13 +57,11 @@ parser.add_argument(
     action="store_true",
     required=False,
 )
-args = parser.parse_args()
 
-action: str = args.a
-timeDate: str = args.d
-status: bool = args.status
-stop: str = args.stop
-pause: bool = args.pause
+args = parser.parse_args()
+timeDate, action = args.d, args.a
+stop = args.stop
+status, pause = args.status, args.pause
 
 
 # Config :: MemoryJobStore :: Blocked-Schedule
@@ -98,11 +88,10 @@ def main(action: str, timeDate: str) -> None:
         Nothing this is where most of the functionality is called in the program.
     """
     captureArgs()
-    intervalDict = getInterval(timeDate)
-    print(intervalDict)
-    sys.exit(130)
     checkActionExists(action)
-    jobHandler(action, 0, 0)
+
+    jobHandler(action)
+
 
 
 def encodeActionNameBase32(action: str) -> str:
@@ -135,36 +124,41 @@ def checkActionExists(action: str) -> bool:
     SideEffects:
         Program will exit if the program or serviceFile does not exist
     """
+    try:
+        isSystemd = False
+        if action.__contains__("systemctl") or action.__contains__("service"):
+            for i in os.scandir("/lib/systemd/system"):
+                if not i.name.startswith(".") and not i.is_dir():
+                    if i.name == actionSplit[2] or i.name == f"{actionSplit[2]}.service":
+                        return True
+        elif action.__contains__("/") == True:
+            splitAction = action.split("/")
+            for i in os.scandir("/usr/bin"):
+                if not i.name.startswith(".") and not i.is_dir():
+                    if i.name == splitAction[-1]:
+                        return True
+        else:
+            print("Input must be a path")
+            sys.exit(130)
 
-    isSystemd = False
-    if action.__contains__("systemctl") or action.__contains__("service"):
-        for i in os.scandir("/lib/systemd/system"):
-            if not i.name.startswith(".") and not i.is_dir():
-                if i.name == actionSplit[2] or i.name == f"{actionSplit[2]}.service":
-                    return True
-    elif action.__contains__("/") == True:
-        splitAction = action.split("/")
-        for i in os.scandir("/usr/bin"):
-            if not i.name.startswith(".") and not i.is_dir():
-                if i.name == splitAction[-1]:
-                    return True
-    else:
-        print("Input must be a path")
+        print("ERROR :: EOFunction was reached")
         sys.exit(130)
-
-    print("ERROR :: EOFunction was reached")
-    sys.exit(130)
-
+    except Exception as err:
+        print(err.msg)
 
 def getServiceTable() -> dict:
     """Returns a dict with the ServiceTable information"""
-    serviceDict = {}
-    for i in os.scandir("/tmp"):
-        if not i.name.startswith(".") and not i.is_dir():
-            if i.name[0:3] == "sck":
-                serviceActionStringSplit = i.name.split("_")
-                serviceDict[serviceActionStringSplit[1]] = serviceActionStringSplit[2]
-    return serviceDict
+    try:
+        serviceDict = {}
+        for i in os.scandir("/tmp"):
+            if not i.name.startswith(".") and not i.is_dir():
+                if i.name[0:3] == "sck":
+                    serviceActionStringSplit = i.name.split("_")
+                    serviceDict[serviceActionStringSplit[1]] = serviceActionStringSplit[2]
+    except Exception as err:
+        print(err.msg)
+    finally:
+        return serviceDict
 
 
 def showFormattedServiceTable(ServiceTable: dict) -> None:
@@ -179,7 +173,6 @@ def showFormattedServiceTable(ServiceTable: dict) -> None:
     print("{:<18} {:<21}".format("service", "action"))
     print("{:<18} {:<21}".format("-------", "------"))
     for k, v in ServiceTable.items():
-        service, action = k, v
         print("{:<18} {:<21} ".format(k, v))
     print("\n")
 
@@ -207,13 +200,14 @@ def getInterval(timeDate: str) -> dict:
         returnedInterval (dict): 2 items in the dictionary, hours && Days.
 
     """
-    returnedInterval, collectedStr, collectedInt = {}, ""
+    returnedInterval, collectedStr, collectedInt = {}, "", ""
     if timeDate != None:
         for i in timeDate:
-            collectedInt += str(i) if i.isdigit() else collectedStr += str(i)
+            if i.isdigit(): collectedInt += str(i)
+            else: collectedStr += str(i)
             if i == " " or i == timeDate[-1]:
                 returnedInterval[collectedStr] = int(collectedInt)
-                collectedInt, collectedStr = ""
+                collectedInt, collectedStr = "", ""
             continue
 
     for j in returnedInterval:
@@ -222,8 +216,7 @@ def getInterval(timeDate: str) -> dict:
             sys.exit(130)
     return returnedInterval
 
-
-def jobHandler(action: str) -> None:
+def jobHandler(action):
     """
     Parameters:
         action          (str): action for the action provided
@@ -237,10 +230,9 @@ def jobHandler(action: str) -> None:
     _time_start = "TIME_SCHEDULED: " + str(datetime.datetime.now())
 
     checkActionExists(action)
-    print(len(action))
     interval: dict = getInterval()
-
-    scheduler.add_job(task, "interval", minutes=interval["minutes"], args=(action))
+    
+    scheduler.add_job(task, "interval", days=interval["days"], hours=interval["hours"], minutes=interval["minutes"], args=(action))
     scheduler.start()
     sockConnect(action, "run", _time_start)
 
@@ -253,9 +245,8 @@ def task(action, *args, **kwargs) -> None:
         Nothing. Starts a child process with the task requested.
     """
     from shlex import quote
-
-    subprocess.run(quote(f"sudo {action}"), shell=True)
-
+    try: subprocess.run(quote(f"sudo {action}"), shell=True)
+    except Exception as subprocess_err: print(subprocess_err.msg)
 
 def stopSock(encodeAction: str) -> None:
     """
@@ -273,7 +264,7 @@ def stopSock(encodeAction: str) -> None:
                 sock.connect(sockFile)
                 sock.sendall(b"stop")
             except Exception as err:
-                print(err)
+                print(err.msg)
                 break
             finally:
                 os.remove(os.path.join("/tmp", sockFile))
@@ -316,4 +307,4 @@ def sockConnect(action: str, status: str, timeStarted: str) -> None:
 
 if __name__ == "__main__":
     main(action, timeDate)
-    sys.exit(1)
+    sys.exit(130)
